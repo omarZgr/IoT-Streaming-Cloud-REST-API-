@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Enhanced Humidity Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f0f4f8;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            padding: 20px 0;
+            background: linear-gradient(90deg, #4CAF50, #81C784);
+            margin-bottom: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        /* Search Section */
+        .search-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-container label, .search-container input, .search-container button {
+            margin: 0 10px;
+            font-size: 16px;
+        }
+
+        .search-container button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .search-container button:hover {
+            background-color: #45A049;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        table th, table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #ddd;
+            background: white;
+        }
+
+        table th {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        table tr:nth-child(odd) td {
+            background-color: #f9f9f9;
+        }
+
+        table tr:hover td {
+            background-color: #f1f1f1;
+        }
+
+        /* Chart Section */
+        .chart-container {
+            width: 100%;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            overflow-x: auto; /* Enable horizontal scrolling */
+        }
+
+        .chart-wrapper {
+            min-width: 1000px; /* Ensure a wide canvas for scrolling */
+            height: 400px; /* Set chart height */
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%; /* Maintain the height of the canvas */
+        }
+    </style>
+</head>
+<body>
+<h1>Enhanced Humidity Dashboard</h1>
+
+<div class="container">
+    <!-- Search Filter Section -->
+    <div class="search-container">
+        <div>
+            <label for="startDate">Start Date:</label>
+            <input type="datetime-local" id="startDate">
+        </div>
+        <div>
+            <label for="endDate">End Date:</label>
+            <input type="datetime-local" id="endDate">
+        </div>
+        <div>
+            <button onclick="filterData()">Search</button>
+        </div>
+    </div>
+
+    <!-- Current Data Statistics -->
+    <h3 style="color: #4CAF50;">Current Data Statistics</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Statistic</th>
+            <th>Value</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr><td>Min</td><td id="currentMin">N/A</td></tr>
+        <tr><td>Max</td><td id="currentMax">N/A</td></tr>
+        <tr><td>Avg</td><td id="currentAvg">N/A</td></tr>
+        </tbody>
+    </table>
+
+    <!-- Filtered Data Statistics -->
+    <h3 style="color: #4CAF50;">Filtered Data Statistics</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Statistic</th>
+            <th>Value</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr><td>Min</td><td id="filteredMin">N/A</td></tr>
+        <tr><td>Max</td><td id="filteredMax">N/A</td></tr>
+        <tr><td>Avg</td><td id="filteredAvg">N/A</td></tr>
+        </tbody>
+    </table>
+
+    <!-- Charts Section -->
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="temperatureChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="barChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="scatterChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="filteredDataChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ctxLine = document.getElementById('temperatureChart').getContext('2d');
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+    const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+    const ctxFiltered = document.getElementById('filteredDataChart').getContext('2d');
+
+    // Gradient for the line chart
+    const gradient = ctxLine.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(75, 192, 192, 0.6)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    // Initialize Charts
+    const lineChart = createChart(ctxLine, 'line', '#4CAF50', gradient);
+    const barChart = createChart(ctxBar, 'bar', '#FF9800');
+    const scatterChart = createChart(ctxScatter, 'scatter', '#673AB7');
+    const filteredChart = createChart(ctxFiltered, 'line', '#3F51B5');
+
+    // Create and update charts efficiently
+    function createChart(context, type, color, bgColor = null) {
+        return new Chart(context, {
+            type: type,
+            data: { labels: [], datasets: [{ label: 'Humidity (%)', data: [], borderColor: color, backgroundColor: bgColor || color }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // Store and stream data
+    const dataStore = [];
+    const MAX_DATA_POINTS = 100; // Prevent overflow
+
+    const eventSource = new EventSource('/dashboard/humidity');
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        const timestamp = new Date(data.time);
+        dataStore.push({ timestamp, value: data.value });
+
+        if (dataStore.length > MAX_DATA_POINTS) {
+            dataStore.shift(); // Remove oldest data point
+        }
+
+        updateCharts(data);
+        updateStatistics();
+    };
+
+    // Function to update all charts
+    function updateCharts(data) {
+        updateChart(lineChart, data);
+        updateChart(barChart, data);
+        scatterChart.data.datasets[0].data.push({ x: new Date(data.time).getTime(), y: data.value });
+        if (scatterChart.data.datasets[0].data.length > MAX_DATA_POINTS) scatterChart.data.datasets[0].data.shift();
+        scatterChart.update();
+    }
+
+    // Reusable chart update function
+    function updateChart(chart, data) {
+        chart.data.labels.push(new Date(data.time).toLocaleTimeString());
+        chart.data.datasets[0].data.push(data.value);
+        if (chart.data.datasets[0].data.length > MAX_DATA_POINTS) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+        }
+        chart.update();
+    }
+
+    // Update statistics dynamically
+    function updateStatistics() {
+        const stats = calculateStatistics(dataStore);
+        setStatistics('currentMin', stats.min);
+        setStatistics('currentMax', stats.max);
+        setStatistics('currentAvg', stats.avg);
+    }
+
+    // Calculate min, max, and average
+    function calculateStatistics(data) {
+        if (data.length === 0) return { min: 'N/A', max: 'N/A', avg: 'N/A' };
+        const values = data.map(d => d.value);
+        const sum = values.reduce((a, b) => a + b, 0);
+        return {
+            min: Math.min(...values).toFixed(2),
+            max: Math.max(...values).toFixed(2),
+            avg: (sum / values.length).toFixed(2)
+        };
+    }
+
+    function setStatistics(id, value) {
+        document.getElementById(id).textContent = value;
+    }
+
+    // Filter data based on input
+    function filterData() {
+        const startDate = new Date(document.getElementById('startDate').value);
+        const endDate = new Date(document.getElementById('endDate').value);
+
+        const filteredData = dataStore.filter(d => d.timestamp >= startDate && d.timestamp <= endDate);
+
+        const stats = calculateStatistics(filteredData);
+        setStatistics('filteredMin', stats.min);
+        setStatistics('filteredMax', stats.max);
+        setStatistics('filteredAvg', stats.avg);
+
+        filteredChart.data.labels = filteredData.map(d => d.timestamp.toLocaleTimeString());
+        filteredChart.data.datasets[0].data = filteredData.map(d => d.value);
+        filteredChart.update();
+    }
+
+</script>
+</body>
+</html>
